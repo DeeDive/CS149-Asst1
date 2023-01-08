@@ -29,4 +29,4 @@ Q3: To minimize speedup for ISPC (without-tasks) over the sequential version of 
                                 (0.95x speedup from ISPC)
                                 (6.57x speedup from task ISPC)
 
-The reason of inefficiency is that most of the 8-wide SIMD lanes lie idle during the running of the program (and a performance degradation from vector instruction vs. normal instruction).
+The reason of inefficiency is that most of the 8-wide SIMD lanes lie idle during the running of the program (and a performance degradation from vector instruction vs. normal instruction (e.g. vector_add vs. add), why?).
