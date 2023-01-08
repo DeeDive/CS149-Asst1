@@ -362,20 +362,37 @@ float arraySumVector(float *values, int N)
   // CS149 STUDENTS TODO: Implement your vectorized version of arraySumSerial here
   //
   float sum = 0;
-  __cs149_vec_float result;
+  __cs149_vec_float result = _cs149_vset_float(0.f);
+  __cs149_mask mask = _cs149_init_ones();
+
+  // O(N/VECTOR_WIDTH * log(VECTOR_WIDTH))
+
+  // for (int i = 0; i < N; i += VECTOR_WIDTH)
+  // {
+  //   __cs149_mask mask = _cs149_init_ones();
+  //   _cs149_vload_float(result, values + i, mask);
+  //   int valid_n_bits_mask = VECTOR_WIDTH;
+  //   while (valid_n_bits_mask > 1)
+  //   {
+  //     _cs149_hadd_float(result, result);
+  //     _cs149_interleave_float(result, result);
+  //     valid_n_bits_mask /= 2;
+  //   }
+  //   sum += result.value[0];
+  // }
+
+  // O(N/VECTOR_WIDTH + log(VECTOR_WIDTH))  acknowledgement: https://github.com/kykim0/asst1/blob/master/prog2_vecintrin/main.cpp
+  __cs149_vec_float partial_array; // used to store the loaded element in one instruction
   for (int i = 0; i < N; i += VECTOR_WIDTH)
   {
-    __cs149_mask mask = _cs149_init_ones();
-    _cs149_vload_float(result, values + i, mask);
-    int valid_n_bits_mask = VECTOR_WIDTH;
-    while (valid_n_bits_mask > 1)
-    {
-      _cs149_hadd_float(result, result);
-      _cs149_interleave_float(result, result);
-      valid_n_bits_mask /= 2;
-    }
-    sum += result.value[0];
+    _cs149_vload_float(partial_array, values + i, mask);
+    _cs149_vadd_float(result, result, partial_array, mask);
   }
-
+  for (int i = VECTOR_WIDTH; i > 1; i /= 2)
+  {
+    _cs149_hadd_float(result, result);
+    _cs149_interleave_float(result, result);
+  }
+  sum = result.value[0];
   return sum;
 }
