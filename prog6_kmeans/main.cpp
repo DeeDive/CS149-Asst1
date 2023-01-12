@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <string>
 #include <fstream>
+#include <thread>
 #include "CycleTimer.h"
 
 #define SEED 7
@@ -156,8 +157,11 @@ int main()
     exit(EXIT_FAILURE);
   }
   double minSerial, minThread;
-  for (int i = 1; i <= 12; ++i)
+  const auto processor_count = std::thread::hardware_concurrency();
+  for (size_t i = 1; i <= processor_count; ++i)
   {
+    readData("./data.dat", &data, &clusterCentroids, &clusterAssignments, &M, &N,
+             &K, &epsilon);
     double startTime = CycleTimer::currentSeconds();
     kMeansThread(data, clusterCentroids, clusterAssignments, M, N, K, epsilon, i);
     double endTime = CycleTimer::currentSeconds();
@@ -165,7 +169,7 @@ int main()
       minSerial = minThread = endTime - startTime;
     else
       minThread = endTime - startTime;
-    printf("[Total Time] for %d threads: %.3f ms; Speedup: %.2f\n", i, (endTime - startTime) * 1000, minSerial / minThread);
+    printf("[Total Time] for %lu threads: %.3f ms; Speedup: %.2f\n", i, (endTime - startTime) * 1000, minSerial / minThread);
     result_log << 1 << "," << i << "," << minSerial << "," << minThread << "," << minSerial / minThread << std::endl;
   }
 
