@@ -1,11 +1,11 @@
 #include <algorithm>
 #include <iostream>
-#include <math.h>
+#include <cmath>
 #include <random>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <string>
-
+#include <fstream>
 #include "CycleTimer.h"
 
 #define SEED 7
@@ -15,8 +15,8 @@ using namespace std;
 
 // Main compute functions
 extern void kMeansThread(double *data, double *clusterCentroids,
-                      int *clusterAssignments, int M, int N, int K,
-                      double epsilon);
+                         int *clusterAssignments, int M, int N, int K,
+                         double epsilon, int numThreads);
 extern double dist(double *x, double *y, int nDim);
 
 // Utilities
@@ -31,11 +31,13 @@ extern void readData(string filename, double **data, double **clusterCentroids,
                      double *epsilon_p);
 
 // Functions for generating data
-double randDouble() {
+double randDouble()
+{
   return static_cast<double>(rand()) / static_cast<double>(RAND_MAX);
 }
 
-void initData(double *data, int M, int N) {
+void initData(double *data, int M, int N)
+{
   int K = 10;
   double *centers = new double[K * N];
 
@@ -46,16 +48,20 @@ void initData(double *data, int M, int N) {
   std::normal_distribution<double> normal_dist(mean, stddev);
 
   // Randomly create points to center data around
-  for (int k = 0; k < K; k++) {
-    for (int n = 0; n < N; n++) {
+  for (int k = 0; k < K; k++)
+  {
+    for (int n = 0; n < N; n++)
+    {
       centers[k * N + n] = randDouble();
     }
   }
 
   // Even clustering
-  for (int m = 0; m < M; m++) {
+  for (int m = 0; m < M; m++)
+  {
     int startingPoint = rand() % K; // Which center to start from
-    for (int n = 0; n < N; n++) {
+    for (int n = 0; n < N; n++)
+    {
       double noise = normal_dist(generator);
       data[m * N + n] = centers[startingPoint * N + n] + noise;
     }
@@ -64,20 +70,25 @@ void initData(double *data, int M, int N) {
   free(centers);
 }
 
-void initCentroids(double *clusterCentroids, int K, int N) {
+void initCentroids(double *clusterCentroids, int K, int N)
+{
   // Initialize centroids (close together - makes it a bit more interesting)
-  for (int n = 0; n < N; n++) {
+  for (int n = 0; n < N; n++)
+  {
     clusterCentroids[n] = randDouble();
   }
-  for (int k = 1; k < K; k++) {
-    for (int n = 0; n < N; n++) {
+  for (int k = 1; k < K; k++)
+  {
+    for (int n = 0; n < N; n++)
+    {
       clusterCentroids[k * N + n] =
           clusterCentroids[n] + (randDouble() - 0.5) * 0.1;
     }
   }
 }
 
-int main() {
+int main()
+{
   srand(SEED);
 
   int M, N, K;
@@ -109,12 +120,15 @@ int main() {
   initCentroids(clusterCentroids, K, N);
 
   // Initialize cluster assignments
-  for (int m = 0; m < M; m++) {
+  for (int m = 0; m < M; m++)
+  {
     double minDist = 1e30;
     int bestAssignment = -1;
-    for (int k = 0; k < K; k++) {
+    for (int k = 0; k < K; k++)
+    {
       double d = dist(&data[m * N], &clusterCentroids[k * N], N);
-      if (d < minDist) {
+      if (d < minDist)
+      {
         minDist = d;
         bestAssignment = k;
       }
@@ -133,11 +147,27 @@ int main() {
   // Log the starting state of the algorithm
   logToFile("./start.log", SAMPLE_RATE, data, clusterAssignments,
             clusterCentroids, M, N, K);
+  // logging HPC stats
+  std::ofstream result_log("./result.log", std::ios::out | std::ios::app);
 
-  double startTime = CycleTimer::currentSeconds();
-  kMeansThread(data, clusterCentroids, clusterAssignments, M, N, K, epsilon);
-  double endTime = CycleTimer::currentSeconds();
-  printf("[Total Time]: %.3f ms\n", (endTime - startTime) * 1000);
+  if (!result_log)
+  {
+    std::cerr << "Error in opening the logging file.";
+    exit(EXIT_FAILURE);
+  }
+  double minSerial, minThread;
+  for (int i = 1; i <= 12; ++i)
+  {
+    double startTime = CycleTimer::currentSeconds();
+    kMeansThread(data, clusterCentroids, clusterAssignments, M, N, K, epsilon, i);
+    double endTime = CycleTimer::currentSeconds();
+    if (i == 1)
+      minSerial = minThread = endTime - startTime;
+    else
+      minThread = endTime - startTime;
+    printf("[Total Time] for %d threads: %.3f ms; Speedup: %.2f\n", i, (endTime - startTime) * 1000, minSerial / minThread);
+    result_log << 1 << "," << i << "," << minSerial << "," << minThread << "," << minSerial / minThread << std::endl;
+  }
 
   // Log the end state of the algorithm
   logToFile("./end.log", SAMPLE_RATE, data, clusterAssignments,
@@ -146,5 +176,6 @@ int main() {
   free(data);
   free(clusterCentroids);
   free(clusterAssignments);
+  result_log.close();
   return 0;
 }
